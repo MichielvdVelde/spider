@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "name": "spider",
+  "version": "0.0.1-alpha",
+  "description": "Task Workflow Engine for the Web",
+  "main": "./dist/api.js",
+  "author": "Michiel van der Velde <michiel@wcdb.life>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/sharedworker": "^0.0.114"
+  },
+  "dependencies": {
+    "alea": "^1.0.1",
+    "simplex-noise": "^4.0.1"
+  }
+}
