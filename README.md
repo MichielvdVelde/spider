@@ -21,6 +21,8 @@ suitable for environments that demand robust management of interdependent tasks.
   control to stop execution gracefully.
 - **Error Handling**: Manages task failures and propagates errors appropriately,
   ensuring the stability of the entire workflow.
+- **Shared Array Buffers**: Utilizes shared array buffers for efficient data
+  sharing between tasks, reducing memory overhead and improving performance.
 
 ## Usage
 
@@ -82,12 +84,16 @@ A global configuration can also be set for the entire workflow through a
 ### Execution in Runners
 
 To execute tasks, Spider utilizes runners that operate as Web Workers. Each
-runner can execute one task at a time, retrieving task details from the engine,
+runner can execute one task at a time, receiving task details from the engine,
 handling their execution, and managing their lifecycles from initiation to
 completion. Spider manages resource use, scales processing capabilities, and
 maintains responsive user interfaces, even under heavy load conditions.
 
 ### Example Usage
+
+Spider aims to provide a simple and intuitive API for defining and executing
+workflows. Below is an example of how you can define a workflow and execute it
+using Spider's API.
 
 ```typescript
 import { executeWorkflow, type WorkflowDescriptor } from "./api";
@@ -129,8 +135,6 @@ for await (const result of executeWorkflow(workflow, { signal })) {
   // Use `ac.abort()` to abort the workflow if needed
 }
 ```
-
-### Handling Results
 
 Spider’s `executeWorkflow` function returns an async generator that yields both
 intermediate and final results of the workflow execution. This feature allows

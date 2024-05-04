@@ -1,3 +1,4 @@
+import { AbortError } from "./errors";
 import {
   attachEventHandlers,
   createEngine,
@@ -62,7 +63,14 @@ export function getEngine(): Engine | null {
  * Check if the engine is started.
  */
 export function started(): boolean {
-  return engine !== null;
+  return engine !== null && readyPromise === null;
+}
+
+/**
+ * Check if the engine is starting.
+ */
+export function starting(): boolean {
+  return readyPromise !== null;
 }
 
 /**
@@ -157,7 +165,9 @@ export async function* executeWorkflow(
    * or setting the deferred result to null if the finish flag is true.
    * @internal
    */
-  const resolve: ResolveFn = (result) => {
+  const resolve: ResolveFn<IntermediateWorkflowResult | FinalWorkflowResult> = (
+    result,
+  ) => {
     const deferred = deferredResult;
 
     if (!deferred) {
@@ -226,7 +236,7 @@ export async function* executeWorkflow(
     // Yield results until the workflow is finished
     while (deferredResult !== null) {
       if (signal?.aborted) {
-        abort(new Error("Aborted"));
+        abort(new AbortError("Workflow aborted"));
       }
 
       const result = await deferredResult.promise;

@@ -201,6 +201,10 @@ export class RunnerPool extends EventTarget {
       runner.terminate();
     }
 
+    for (const deferred of this.#pending) {
+      deferred.reject(new Error("The pool was terminated"));
+    }
+
     this.#runners = [];
     this.#idleRunners = [];
     this.#pending = [];

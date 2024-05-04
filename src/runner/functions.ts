@@ -6,6 +6,7 @@ import type {
   BufferType,
   DependencyMap,
   DependencyType,
+  Task,
   TaskConfig,
   TaskDescriptor,
 } from "../types";
@@ -13,7 +14,7 @@ import { DependencyError, TaskExecutionError } from "./errors";
 import type { Context, TaskRun } from "./types";
 
 /**
- * Dispatch a message to the main worker.
+ * Dispatch a message to the engine.
  * @param message - The message to dispatch.
  * @param transfer - The transferable objects to transfer.
  * @internal
@@ -26,9 +27,13 @@ export function dispatch<T extends BaseMessage>(
 }
 
 /**
- * Create a new context.
+ * Create a new context for the given task.
+ *
+ * This function is used to create a new context for a task. The context
+ * provides access to the task's dependencies, configuration, and output.
+ *
  * @param descriptor - The task descriptor.
- * @param run - The task run.
+ * @param task - The task.
  * @internal
  */
 export function createContext<
@@ -38,15 +43,15 @@ export function createContext<
   Config extends TaskConfig = TaskConfig,
 >(
   descriptor: TaskDescriptor<string, Deps, Config>,
-  run: TaskRun<ID, Deps, Output, Config>,
+  task: Task<ID, Deps, Output, Config>,
 ): Context<ID, Deps, Config, Output> {
   return {
-    id: run.id,
-    dependencies: run.dependencies,
-    config: run.config,
-    output: run.output,
+    id: task.id,
+    dependencies: task.dependencies,
+    config: task.config,
+    output: task.output,
     get: (key) => {
-      const dep = run.dependencies[key];
+      const dep = task.dependencies[key];
 
       if (!dep) {
         throw new DependencyError(
@@ -59,7 +64,7 @@ export function createContext<
     },
     getTyped: <K extends keyof Deps>(key: K, index?: number) => {
       const depType = descriptor.dependencies?.[key];
-      const dep = run.dependencies[key];
+      const dep = task.dependencies[key];
 
       if (!depType || !dep) {
         throw new DependencyError(
@@ -77,10 +82,10 @@ export function createContext<
             );
           }
 
-          return fromSharedArrayBuffer(depType, dep[index]) as DependencyType<
-            Deps,
-            K
-          >;
+          return fromSharedArrayBuffer(
+            depType,
+            dep[index],
+          ) as DependencyType<Deps, K>;
         } else {
           const mapper = (d: SharedArrayBuffer) =>
             fromSharedArrayBuffer(depType, d);

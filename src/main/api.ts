@@ -1,17 +1,17 @@
-import {
-  isErrorResponse,
-  isFinishResponse,
-  isSuccessResponse,
-} from "../guards";
+import { AbortError } from "../errors";
+import { isErrorResponse, isSuccessResponse } from "../guards";
 import type {
+  AbortFn,
   BufferType,
   DependencyMap,
   FinalTaskResult,
+  FinalTaskResultPayload,
   FinalWorkflowResult,
   FinalWorkflowResultPayload,
   IntermediateTaskResult,
   IntermediateWorkflowResult,
   RejectFn,
+  ResolveFn,
   Task,
   TaskConfig,
   TaskDescriptor,
@@ -63,7 +63,7 @@ export async function* executeWorkflow(
   const { tasks, taskDescriptors } = workflow;
   const { pool, signal } = options;
   const requestId = crypto.randomUUID();
-  const taskKeySet = new Set(tasks.keys());
+  const taskKeySet: ReadonlySet<string> = new Set(tasks.keys());
 
   /** The results of each task. */
   const results = new Map<string, SharedArrayBuffer>();
@@ -103,10 +103,10 @@ export async function* executeWorkflow(
     | Deferred<IntermediateTaskResult | FinalTaskResult>
     | null = new Deferred();
 
-  const resolve = (
-    result: IntermediateTaskResult | FinalTaskResult,
-    taskId: string,
+  const resolve: ResolveFn<IntermediateTaskResult | FinalTaskResult> = (
+    result,
   ) => {
+    const taskId = result.id;
     const deferred = deferredMessage;
 
     if (deferred === null) {
@@ -129,9 +129,8 @@ export async function* executeWorkflow(
         taskReadiness,
       );
 
-      if (isSuccessResponse<FinalWorkflowResultPayload>(result)) {
-        results.set(taskId, result.payload.output);
-      }
+      // Update results
+      results.set(taskId, result.payload.output);
     }
 
     // No new deferred message if all tasks are done
@@ -144,10 +143,8 @@ export async function* executeWorkflow(
     deferredMessage = null;
 
     // Reject all remaining tasks
-    for (const readiness of taskReadiness.values()) {
-      if (!readiness.settled) {
-        readiness.reject(reason);
-      }
+    for (const taskId of remainingTasks.values()) {
+      taskReadiness.get(taskId)?.reject(reason);
     }
 
     deferred?.reject(reason);
@@ -156,15 +153,13 @@ export async function* executeWorkflow(
   /** Whether the workflow has been aborted. */
   let aborted = false;
 
-  const abort = (reason: Error) => {
+  const abort: AbortFn = (reason) => {
     if (!aborted && deferredMessage) {
       aborted = true;
 
       // Reject all remaining tasks
-      for (const readiness of taskReadiness.values()) {
-        if (!readiness.settled) {
-          readiness.reject(reason);
-        }
+      for (const taskId of remainingTasks.values()) {
+        taskReadiness.get(taskId)?.reject(reason);
       }
 
       reject(new AggregateError([reason], "Workflow aborted"));
@@ -189,7 +184,7 @@ export async function* executeWorkflow(
   // Wait for all messages to be dispatched
   while (deferredMessage !== null) {
     if (signal?.aborted) {
-      abort(new Error("Aborted by signal"));
+      abort(new AbortError("Workflow aborted"));
       break;
     }
 
@@ -237,6 +232,9 @@ function resultsMapToObj(results: Map<string, SharedArrayBuffer>) {
   return obj;
 }
 
+/**
+ * Task execution options.
+ */
 export interface ExecuteTaskOptions {
   /** The task runner pool. */
   pool: RunnerPool;

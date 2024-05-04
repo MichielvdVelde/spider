@@ -42,9 +42,13 @@ export interface Context<
   /**
    * Get a typed dependency by key.
    * @param key The dependency key.
+   * @param index The dependency index. Only applicable for dependency groups.
    * @returns The dependency.
    */
-  getTyped<T extends keyof Deps>(key: T): DependencyType<Deps, T>;
+  getTyped<T extends keyof Deps>(
+    key: T,
+    index?: number,
+  ): DependencyType<Deps, T>;
 
   /**
    * Dispatch a response.

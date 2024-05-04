@@ -21,7 +21,7 @@ import type {
 export function createEngine(): Engine {
   // @ts-expect-error - Missing TypeScript type for SharedWorker.
   return new SharedWorker(new URL("./main/worker.ts", import.meta.url), {
-    name: "subspace-main-worker",
+    name: "spider-main-worker",
     type: "module",
     credentials: "same-origin",
   });
@@ -49,8 +49,8 @@ export function attachEventHandlers(
 export function createResponseMessageHandler(
   type: string, // NOTE: Make an array of types?
   requestId: string,
-  resolve: ResolveFn,
-  reject: RejectFn,
+  resolve: ResolveFn<any>,
+  reject: RejectFn<any>,
 ): (event: MessageEvent<unknown>) => void {
   return ({ data }: MessageEvent<unknown>) => {
     if (isResponse(data, type, requestId)) {

@@ -50,3 +50,14 @@ export class DuplicateTaskError extends ValidationError {
     super(dependency, message);
   }
 }
+
+/**
+ * An abort error.
+ */
+export class AbortError extends Error {
+  readonly name: string = "AbortError";
+
+  constructor(message = "Operation aborted") {
+    super(message);
+  }
+}

@@ -1,3 +1,4 @@
+import { DependencyNotFoundError } from "../errors";
 import { isErrorResponse } from "../guards";
 import type {
   BaseMessage,
@@ -6,6 +7,7 @@ import type {
   DependencyRecord,
   FinalTaskResult,
   IntermediateTaskResult,
+  RejectFn,
   Task,
   TaskConfig,
   TaskDescriptor,
@@ -120,6 +122,7 @@ export function updateDependencies(
         const newCount = dependencyCounter.decrement(depTaskId);
 
         if (newCount === 0) {
+          // The task is ready to be executed
           taskReadiness.get(depTaskId)!.resolve();
         }
       }
@@ -137,6 +140,7 @@ export function updateDependencies(
     const newCount = dependencyCounter.decrement(dependent);
 
     if (newCount === 0) {
+      // The dependent task is ready to be executed
       taskReadiness.get(dependent)!.resolve();
     }
   }
@@ -162,13 +166,17 @@ export function resolveDependencies(
   const depKeys = task.dependencies ? Object.keys(task.dependencies) : [];
   const dependencies: DependencyRecord = {};
 
-  // Helper function to get a dependency or throw an error
+  /** Helper function to get a dependency or throw an error. */
   function getOrError(depTaskId: string, index?: number) {
     const value = results.get(depTaskId);
 
     if (!value) {
       const key = `${depTaskId}${index !== undefined ? `[${index}]` : ""}`;
-      throw new Error(`Dependency "${key}" is missing from the results`);
+
+      throw new DependencyNotFoundError(
+        key,
+        `Dependency "${key}" is missing from the results`,
+      );
     }
 
     return value;
@@ -214,7 +222,7 @@ export async function execute(
     message: IntermediateTaskResult | FinalTaskResult,
     id: string,
   ) => void,
-  reject: (reason: unknown) => void,
+  reject: RejectFn,
 ) {
   try {
     // Wait for dependencies to be ready
@@ -223,7 +231,7 @@ export async function execute(
     // Get the dependencies
     const dependencies = resolveDependencies(task, descriptor, results);
 
-    // Execute the task in a runner
+    // Execute the task in with a runner from the pool
     await withRunner(pool, async (runner) => {
       try {
         const generator = executeTask(runner, task, descriptor, dependencies);
@@ -270,6 +278,7 @@ export async function* executeTask(
  *
  * @param pool - The runner pool.
  * @param fn - The function to execute.
+ * @internal
  */
 export async function withRunner(
   pool: RunnerPool,

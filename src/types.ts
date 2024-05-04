@@ -112,15 +112,15 @@ export interface PayloadMessage<P = unknown> extends BaseMessage {
  * A resolve function.
  * @param value - The value to resolve.
  */
-export type ResolveFn = (
-  value: IntermediateWorkflowResult | FinalWorkflowResult,
+export type ResolveFn<T = unknown> = (
+  value: T,
 ) => void;
 
 /**
  * A reject function.
  * @param reason - The reason for the rejection.
  */
-export type RejectFn = (reason?: unknown) => void;
+export type RejectFn<T = unknown> = (reason?: T) => void;
 
 /**
  * A function to abort a workflow.
@@ -300,7 +300,8 @@ export interface AbortWorkflowMessage
 /**
  * A workflow result.
  */
-export interface WorkflowResult extends TypeMessage<"workflow:result"> {
+export interface BaseWorkflowResult<T extends string = string>
+  extends TypeMessage<`workflow:${T}`> {
   /** The workflow ID. */
   id: string;
 }
@@ -324,7 +325,9 @@ export interface FinalWorkflowResultPayload {
  * An intermediate workflow result.
  */
 export interface IntermediateWorkflowResult
-  extends WorkflowResult, PayloadMessage<IntermediateWorkflowResultPayload> {
+  extends
+    BaseWorkflowResult,
+    PayloadMessage<IntermediateWorkflowResultPayload> {
   finish: false;
 }
 
@@ -332,9 +335,14 @@ export interface IntermediateWorkflowResult
  * A final workflow result.
  */
 export interface FinalWorkflowResult
-  extends WorkflowResult, PayloadMessage<FinalWorkflowResultPayload> {
+  extends BaseWorkflowResult, PayloadMessage<FinalWorkflowResultPayload> {
   finish: true;
 }
+
+/**
+ * A workflow result.
+ */
+export type WorkflowResult = IntermediateWorkflowResult | FinalWorkflowResult;
 
 /**
  * A task result.
@@ -350,7 +358,8 @@ export interface FinalTaskResultPayload {
   output: SharedArrayBuffer;
 }
 
-export interface TaskResult extends TypeMessage<"task:result"> {
+export interface BaseTaskResult<T extends string = string>
+  extends TypeMessage<`task:${T}`> {
   /** The workflow ID. */
   id: string;
 }
@@ -359,7 +368,7 @@ export interface TaskResult extends TypeMessage<"task:result"> {
  * An intermediate task result.
  */
 export interface IntermediateTaskResult
-  extends TaskResult, PayloadMessage<IntermediateTaskResultPayload> {
+  extends BaseTaskResult, PayloadMessage<IntermediateTaskResultPayload> {
   finish: false;
 }
 
@@ -367,9 +376,14 @@ export interface IntermediateTaskResult
  * A final task result.
  */
 export interface FinalTaskResult
-  extends TaskResult, PayloadMessage<FinalTaskResultPayload> {
+  extends BaseTaskResult, PayloadMessage<FinalTaskResultPayload> {
   finish: true;
 }
+
+/**
+ * A task result.
+ */
+export type TaskResult = IntermediateTaskResult | FinalTaskResult;
 
 /**
  * A workflow configuration.
