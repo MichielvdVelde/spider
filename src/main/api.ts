@@ -1,4 +1,8 @@
-import { isErrorResponse, isSuccessResponse } from "../guards";
+import {
+  isErrorResponse,
+  isFinishResponse,
+  isSuccessResponse,
+} from "../guards";
 import type {
   BufferType,
   DependencyMap,
@@ -59,17 +63,18 @@ export async function* executeWorkflow(
   const { tasks, taskDescriptors } = workflow;
   const { pool, signal } = options;
   const requestId = crypto.randomUUID();
+  const taskKeySet = new Set(tasks.keys());
 
   /** The results of each task. */
   const results = new Map<string, SharedArrayBuffer>();
   /** The readiness of each task. */
   const taskReadiness = new Map<string, Deferred<void>>();
   /** The number of dependencies for each task. */
-  const dependencyCount = new DependencyCounter();
+  const dependencyCount = new DependencyCounter(taskKeySet);
   /** The tasks that depend on each task. */
   const dependents = new Map<string, Set<string>>();
   /** The tasks that are remaining to be executed. */
-  const remainingTasks = new Set(tasks.keys());
+  const remainingTasks = new Set(taskKeySet);
 
   // Initialize dependency count and dependents
   for (const task of tasks.values()) {
@@ -105,6 +110,10 @@ export async function* executeWorkflow(
     const deferred = deferredMessage;
 
     if (deferred === null) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("Resolve called after workflow end");
+      }
+
       return;
     }
 
@@ -123,17 +132,10 @@ export async function* executeWorkflow(
       if (isSuccessResponse<FinalWorkflowResultPayload>(result)) {
         results.set(taskId, result.payload.output);
       }
-
-      if (remainingTasks.size) {
-        deferredMessage = new Deferred();
-      } else {
-        // All tasks have finished
-        deferredMessage = null;
-      }
-    } else {
-      deferredMessage = new Deferred();
     }
 
+    // No new deferred message if all tasks are done
+    deferredMessage = remainingTasks.size === 0 ? null : new Deferred();
     deferred.resolve(result);
   };
 
@@ -142,9 +144,11 @@ export async function* executeWorkflow(
     deferredMessage = null;
 
     // Reject all remaining tasks
-    [...taskReadiness.values()]
-      .filter((deferred) => !deferred.settled)
-      .forEach((deferred) => deferred.reject(reason));
+    for (const readiness of taskReadiness.values()) {
+      if (!readiness.settled) {
+        readiness.reject(reason);
+      }
+    }
 
     deferred?.reject(reason);
   };
@@ -157,9 +161,11 @@ export async function* executeWorkflow(
       aborted = true;
 
       // Reject all remaining tasks
-      [...taskReadiness.values()]
-        .filter((deferred) => !deferred.settled)
-        .forEach((deferred) => deferred.reject(reason));
+      for (const readiness of taskReadiness.values()) {
+        if (!readiness.settled) {
+          readiness.reject(reason);
+        }
+      }
 
       reject(new AggregateError([reason], "Workflow aborted"));
     }

@@ -31,6 +31,7 @@ export interface Context<
   /**
    * Get a dependency by key.
    * @param key The dependency key.
+   * @param index The dependency index. Only applicable for dependency groups.
    * @returns The dependency buffer.
    */
   get<T extends keyof Deps>(

@@ -2,7 +2,28 @@
  * A class to keep track of the dependency count of tasks.
  */
 export class DependencyCounter {
+  /** The dependency counts. */
   #counts = new Map<string, number>();
+
+  /**
+   * Create a new dependency counter.
+   * @param deps The dependencies to initialize to zero.
+   */
+  constructor(deps?: Iterable<string>) {
+    if (deps) {
+      this.init(deps);
+    }
+  }
+
+  /**
+   * Initialize the dependency count with the given dependencies.
+   * @param deps The dependencies to initialize the count with.
+   */
+  init(deps: Iterable<string>): void {
+    for (const taskId of deps) {
+      this.#counts.set(taskId, 0);
+    }
+  }
 
   /**
    * Set the count for a task.
@@ -46,17 +67,17 @@ export class DependencyCounter {
       throw new Error(`Dependency count for task ${taskId} is already zero`);
     }
 
-    this.#counts.set(taskId, newCount - 1);
+    this.#counts.set(taskId, newCount);
     return newCount;
   }
 
   /**
    * Get the count for a task.
    * @param taskId The task ID.
-   * @returns The count.
+   * @returns The count, or `undefined` if the task is not present.
    */
-  get(taskId: string): number {
-    return this.#counts.get(taskId) ?? 0;
+  get(taskId: string): number | undefined {
+    return this.#counts.get(taskId);
   }
 
   /**

@@ -56,6 +56,20 @@ export function isSuccessResponse<P = unknown>(
 }
 
 /**
+ * Check if the data is a finish response.
+ * @param data - The data to check.
+ * @param type - The expected type of the response.
+ * @param id - The expected ID of the response.
+ */
+export function isFinishResponse<P = unknown>(
+  data: unknown,
+  type?: string,
+  id?: string,
+): data is Response<P> {
+  return isResponse(data, type, id) && data.finish === true;
+}
+
+/**
  * Check if the data is an error response.
  * @param data - The data to check.
  * @param type - The expected type of the response.

@@ -12,7 +12,7 @@ import type {
 } from "../types";
 import { Deferred } from "../util";
 import { DependencyCounter } from "./lib/DependencyCounter";
-import { Runner, RunnerPool } from "./lib/RunnerPool";
+import type { Runner, RunnerPool } from "./lib/RunnerPool";
 
 /**
  * Create a message listener for the given port.
@@ -127,6 +127,7 @@ export function updateDependencies(
       const newCount = dependencyCounter.decrement(depKey);
 
       if (newCount === 0) {
+        // The task is ready to be executed
         taskReadiness.get(depKey)!.resolve();
       }
     }
@@ -162,11 +163,12 @@ export function resolveDependencies(
   const dependencies: DependencyRecord = {};
 
   // Helper function to get a dependency or throw an error
-  function getOrError(depTaskId: string) {
+  function getOrError(depTaskId: string, index?: number) {
     const value = results.get(depTaskId);
 
     if (!value) {
-      throw new Error(`Dependency "${depTaskId}" is missing from the results`);
+      const key = `${depTaskId}${index !== undefined ? `[${index}]` : ""}`;
+      throw new Error(`Dependency "${key}" is missing from the results`);
     }
 
     return value;
@@ -176,7 +178,9 @@ export function resolveDependencies(
     const dep = descriptor.dependencies?.[depKey];
 
     if (Array.isArray(dep)) {
-      dependencies[depKey] = dep.map((depTaskId) => getOrError(depTaskId));
+      dependencies[depKey] = dep.map((depTaskId, index) =>
+        getOrError(depTaskId, index)
+      );
     } else {
       dependencies[depKey] = getOrError(depKey);
     }
@@ -219,24 +223,22 @@ export async function execute(
     // Get the dependencies
     const dependencies = resolveDependencies(task, descriptor, results);
 
-    // Execute the task
-    const runner = await pool.acquire();
+    // Execute the task in a runner
+    await withRunner(pool, async (runner) => {
+      try {
+        const generator = executeTask(runner, task, descriptor, dependencies);
 
-    try {
-      for await (
-        const message of executeTask(runner, task, descriptor, dependencies)
-      ) {
-        if (isErrorResponse(message)) {
-          reject(message);
-        } else {
-          resolve(message, task.id);
+        for await (const message of generator) {
+          if (isErrorResponse(message)) {
+            reject(message);
+          } else {
+            resolve(message, task.id);
+          }
         }
+      } catch (error) {
+        reject(error);
       }
-    } catch (error) {
-      reject(error);
-    } finally {
-      pool.release(runner);
-    }
+    });
   } catch (error) {
     throw new AggregateError([error], "Task execution failed");
   }
@@ -256,5 +258,28 @@ export async function* executeTask(
   descriptor: TaskDescriptor<string, DependencyMap, TaskConfig>,
   dependencies: Record<string, SharedArrayBuffer | SharedArrayBuffer[]>,
 ): AsyncGenerator<IntermediateTaskResult | FinalTaskResult> {
-  //
+  // replace execute() with this function, self-contained to execute a task
+  // will be part of the public API
+}
+
+/**
+ * Execute the function with a runner from the pool.
+ *
+ * This function acquires a runner from the pool, executes the function with the
+ * runner, and releases the runner back to the pool.
+ *
+ * @param pool - The runner pool.
+ * @param fn - The function to execute.
+ */
+export async function withRunner(
+  pool: RunnerPool,
+  fn: (runner: Runner) => void | PromiseLike<void>,
+) {
+  const runner = await pool.acquire();
+
+  try {
+    await fn(runner);
+  } finally {
+    pool.release(runner);
+  }
 }

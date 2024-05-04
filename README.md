@@ -29,12 +29,17 @@ suitable for environments that demand robust management of interdependent tasks.
 Spider's engine runs within a Shared Worker, ensuring that UI operations are not
 blocked by heavy processing tasks. Being in a Shared Worker also means the
 engine is shared across all tabs from the same origin. To start the engine,
-simply call the `start` function.
+simply call the `start` or `waitForReady` function (they are functionally
+equivalent).
 
 ```ts
-import { start } from "./api";
+import { start, waitForReady } from "./api";
 
 await start();
+
+// or
+
+await waitForReady();
 ```
 
 This setup ensures that the engine is initialized and ready to manage the tasks

@@ -32,9 +32,13 @@ const DEFAULT_OPTIONS: Required<RunnerPoolOptions> = {
  * A pool of runners that can execute tasks.
  */
 export class RunnerPool extends EventTarget {
+  /** The runners in the pool. */
   #runners: Runner[] = [];
+  /** The idle runners in the pool. */
   #idleRunners: Runner[] = [];
+  /** The pending acquires in the pool. */
   #pending: Deferred<Runner>[] = [];
+  /** The options for the runner pool. */
   #options: Required<RunnerPoolOptions>;
 
   /**
@@ -85,7 +89,9 @@ export class RunnerPool extends EventTarget {
   }
 
   set min(value: number) {
-    if (value <= 0) {
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+      throw new TypeError("The minimum number of runners must be an integer");
+    } else if (value <= 0) {
       throw new TypeError(
         "The minimum number of runners must be greater than 0",
       );
@@ -105,15 +111,8 @@ export class RunnerPool extends EventTarget {
     }
 
     // Terminate idle runners if the minimum number of runners has decreased
-    for (let i = this.#runners.length; i > this.#options.min; i--) {
-      const runner = this.#idleRunners.pop();
-
-      if (runner) {
-        runner.terminate();
-        this.#runners.splice(this.#runners.indexOf(runner), 1);
-      } else {
-        break;
-      }
+    if (this.#runners.length > this.#options.min) {
+      this.#terminateIdleRunners();
     }
   }
 
@@ -123,7 +122,9 @@ export class RunnerPool extends EventTarget {
   }
 
   set max(value: number) {
-    if (value <= 0) {
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+      throw new TypeError("The maximum number of runners must be an integer");
+    } else if (value <= 0) {
       throw new TypeError(
         "The maximum number of runners must be greater than 0",
       );
@@ -136,15 +137,8 @@ export class RunnerPool extends EventTarget {
     this.#options.max = value;
 
     // Terminate idle runners if the maximum number of runners has decreased
-    for (let i = this.#runners.length; i > this.#options.max; i--) {
-      const runner = this.#idleRunners.pop();
-
-      if (runner) {
-        runner.terminate();
-        this.#runners.splice(this.#runners.indexOf(runner), 1);
-      } else {
-        break;
-      }
+    if (this.#runners.length > this.#options.max) {
+      this.#terminateIdleRunners();
     }
   }
 
@@ -210,6 +204,21 @@ export class RunnerPool extends EventTarget {
     this.#runners = [];
     this.#idleRunners = [];
     this.#pending = [];
+  }
+
+  /**
+   * Terminates all idle runners in the pool.
+   */
+  #terminateIdleRunners(): void {
+    for (const runner of this.#idleRunners) {
+      runner.terminate();
+    }
+
+    this.#runners = this.#runners.filter((runner) =>
+      !this.#idleRunners.includes(runner)
+    );
+
+    this.#idleRunners = [];
   }
 
   /**
