@@ -56,8 +56,10 @@ export class DuplicateTaskError extends ValidationError {
  */
 export class AbortError extends Error {
   readonly name: string = "AbortError";
+  readonly errors: Error[];
 
-  constructor(message = "Operation aborted") {
+  constructor(errors: Error[] = [], message = "Operation aborted") {
     super(message);
+    this.errors = errors;
   }
 }

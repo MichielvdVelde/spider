@@ -20,12 +20,18 @@ export interface RunnerPoolOptions {
    * @default navigator.hardwareConcurrency ?? 1
    */
   max?: number;
+  /**
+   * The maximum number of pending acquires.
+   * @default Infinity
+   */
+  maxPending?: number;
 }
 
 /** The default options for the runner pool. */
 const DEFAULT_OPTIONS: Required<RunnerPoolOptions> = {
   min: 1,
   max: navigator.hardwareConcurrency ?? 1,
+  maxPending: Infinity,
 };
 
 /**
@@ -66,6 +72,10 @@ export class RunnerPool extends EventTarget {
     ) {
       throw new Error(
         "The minimum number of runners cannot exceed the maximum number of runners",
+      );
+    } else if (options?.maxPending !== undefined && options.maxPending <= 0) {
+      throw new TypeError(
+        "The maximum number of pending acquires must be greater than 0",
       );
     }
 
@@ -173,6 +183,10 @@ export class RunnerPool extends EventTarget {
     } else if (this.#runners.length < this.#options.max) {
       return this.#createRunner(false);
     } else {
+      if (this.#pending.length >= this.#options.maxPending) {
+        throw new Error("The maximum number of pending acquires was reached");
+      }
+
       const deferred = new Deferred<Runner>();
       this.#pending.push(deferred);
       return deferred.promise;

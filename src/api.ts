@@ -51,14 +51,6 @@ let readyPromise: Promise<void> | null = null;
 // if both engine and readyPromise are null, then the engine is not started
 // if readyPromise is not null, then the engine is starting
 // if readyPromise is null, and engine is not null, then the engine is started
-
-/**
- * Get the engine.
- */
-export function getEngine(): Engine | null {
-  return engine;
-}
-
 /**
  * Check if the engine is started.
  */
@@ -195,7 +187,8 @@ export async function* executeWorkflow(
   let aborted = false;
 
   /**
-   * Aborts the workflow. Will reject the deferred result with the given error.
+   * Aborts the workflow. Will send an abort message to the worker and
+   * reject the deferred result with the given error.
    * @internal
    */
   const abort: AbortFn = (error) => {
@@ -209,7 +202,7 @@ export async function* executeWorkflow(
       });
     }
 
-    reject(error);
+    reject(new AbortError([error], "Workflow aborted"));
   };
 
   /** The signal for aborting the workflow. */
@@ -236,7 +229,7 @@ export async function* executeWorkflow(
     // Yield results until the workflow is finished
     while (deferredResult !== null) {
       if (signal?.aborted) {
-        abort(new AbortError("Workflow aborted"));
+        abort(new Error("Workflow aborted by signal"));
       }
 
       const result = await deferredResult.promise;

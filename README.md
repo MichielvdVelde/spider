@@ -44,10 +44,6 @@ await start();
 await waitForReady();
 ```
 
-This setup ensures that the engine is initialized and ready to manage the tasks
-across multiple browser tabs without duplicating processes or consuming
-excessive resources.
-
 ### Understanding Workflows
 
 A workflow is a structured sequence of tasks that are designed to achieve a
@@ -130,7 +126,7 @@ const signal = ac.signal;
 // Execute the workflow
 for await (const result of executeWorkflow(workflow, { signal })) {
   console.log("Workflow result:", result);
-  console.log("Error:", result.error === true ? result.payload : null);
+  console.log("Error:", result.error ?? "None");
   console.log("Finished:", result.type === "workflow:result" && result.finish);
   // Use `ac.abort()` to abort the workflow if needed
 }

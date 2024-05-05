@@ -344,23 +344,27 @@ export interface FinalWorkflowResult
  */
 export type WorkflowResult = IntermediateWorkflowResult | FinalWorkflowResult;
 
+export interface BaseTaskResultPayload {
+  taskId: string;
+}
+
 /**
  * A task result.
  */
-export interface IntermediateTaskResultPayload {
+export interface IntermediateTaskResultPayload extends BaseTaskResultPayload {
   //
 }
 
 /**
  * A final task result payload.
  */
-export interface FinalTaskResultPayload {
+export interface FinalTaskResultPayload extends BaseTaskResultPayload {
   output: SharedArrayBuffer;
 }
 
 export interface BaseTaskResult<T extends string = string>
   extends TypeMessage<`task:${T}`> {
-  /** The workflow ID. */
+  /** The result ID. */
   id: string;
 }
 

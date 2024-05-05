@@ -8,9 +8,11 @@ import type {
   FinalTaskResult,
   IntermediateTaskResult,
   RejectFn,
+  ResolveFn,
   Task,
   TaskConfig,
   TaskDescriptor,
+  TaskResult,
 } from "../types";
 import { Deferred } from "../util";
 import { DependencyCounter } from "./lib/DependencyCounter";
@@ -42,6 +44,21 @@ export function dispatch<T extends BaseMessage>(
   transfer?: Transferable[],
 ) {
   port.postMessage(message, transfer ? transfer : []);
+}
+
+/**
+ * Convert a results map to an object.
+ * @param results The results map.
+ * @internal
+ */
+export function resultsMapToObj(results: Map<string, SharedArrayBuffer>) {
+  const obj: Record<string, SharedArrayBuffer> = {};
+
+  for (const [key, value] of results.entries()) {
+    obj[key] = value;
+  }
+
+  return obj;
 }
 
 /**
@@ -218,10 +235,7 @@ export async function execute(
   pool: RunnerPool,
   taskReadiness: Map<string, Deferred<void>>,
   results: Map<string, SharedArrayBuffer>,
-  resolve: (
-    message: IntermediateTaskResult | FinalTaskResult,
-    id: string,
-  ) => void,
+  resolve: ResolveFn<TaskResult>,
   reject: RejectFn,
 ) {
   try {
@@ -240,7 +254,7 @@ export async function execute(
           if (isErrorResponse(message)) {
             reject(message);
           } else {
-            resolve(message, task.id);
+            resolve(message);
           }
         }
       } catch (error) {

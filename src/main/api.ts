@@ -1,25 +1,23 @@
 import { AbortError } from "../errors";
-import { isErrorResponse, isSuccessResponse } from "../guards";
+import { isErrorResponse } from "../guards";
 import type {
   AbortFn,
   BufferType,
   DependencyMap,
-  FinalTaskResult,
-  FinalTaskResultPayload,
   FinalWorkflowResult,
-  FinalWorkflowResultPayload,
-  IntermediateTaskResult,
   IntermediateWorkflowResult,
   RejectFn,
   ResolveFn,
   Task,
   TaskConfig,
   TaskDescriptor,
+  TaskResult,
 } from "../types";
 import { Deferred } from "../util";
 import {
   execute,
   initializeDependencies,
+  resultsMapToObj,
   updateDependencies,
 } from "./functions";
 import { DependencyCounter } from "./lib/DependencyCounter";
@@ -100,22 +98,26 @@ export async function* executeWorkflow(
   }
 
   let deferredMessage:
-    | Deferred<IntermediateTaskResult | FinalTaskResult>
+    | Deferred<TaskResult>
     | null = new Deferred();
 
-  const resolve: ResolveFn<IntermediateTaskResult | FinalTaskResult> = (
-    result,
-  ) => {
-    const taskId = result.id;
-    const deferred = deferredMessage;
-
-    if (deferred === null) {
+  /**
+   * Resolve a task result. Will update dependencies and results,
+   * as well as resolve the deferred message and reset it if there
+   * are remaining tasks.
+   * @internal
+   */
+  const resolve: ResolveFn<TaskResult> = (result) => {
+    if (deferredMessage === null) {
       if (process.env.NODE_ENV === "development") {
         console.warn("Resolve called after workflow end");
       }
 
       return;
     }
+
+    const deferred = deferredMessage;
+    const taskId = result.payload.taskId;
 
     if (result.finish) {
       remainingTasks.delete(taskId);
@@ -138,31 +140,48 @@ export async function* executeWorkflow(
     deferred.resolve(result);
   };
 
+  /**
+   * Reject the workflow. Will reject all remaining tasks and
+   * reject the deferred message.
+   * @internal
+   */
   const reject: RejectFn = (reason) => {
+    if (deferredMessage === null) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("Reject called after workflow end");
+      }
+
+      return;
+    }
+
     const deferred = deferredMessage;
     deferredMessage = null;
 
-    // Reject all remaining tasks
-    for (const taskId of remainingTasks.values()) {
-      taskReadiness.get(taskId)?.reject(reason);
+    try {
+      // Reject all remaining tasks
+      for (const taskId of remainingTasks.values()) {
+        taskReadiness.get(taskId)?.reject(reason);
+      }
+    } finally {
+      deferred.reject(reason);
     }
-
-    deferred?.reject(reason);
   };
 
   /** Whether the workflow has been aborted. */
   let aborted = false;
 
+  /**
+   * Abort the workflow. Will reject the deferred message with the
+   * given reason.
+   * @internal
+   */
   const abort: AbortFn = (reason) => {
     if (!aborted && deferredMessage) {
       aborted = true;
 
-      // Reject all remaining tasks
-      for (const taskId of remainingTasks.values()) {
-        taskReadiness.get(taskId)?.reject(reason);
-      }
+      // TODO: Send abort message to all runners
 
-      reject(new AggregateError([reason], "Workflow aborted"));
+      reject(new AbortError([reason], "Workflow aborted"));
     }
   };
 
@@ -184,7 +203,7 @@ export async function* executeWorkflow(
   // Wait for all messages to be dispatched
   while (deferredMessage !== null) {
     if (signal?.aborted) {
-      abort(new AbortError("Workflow aborted"));
+      abort(new Error("Workflow aborted by signal"));
       break;
     }
 
@@ -218,21 +237,6 @@ export async function* executeWorkflow(
 }
 
 /**
- * Convert a results map to an object.
- * @param results The results map.
- * @internal
- */
-function resultsMapToObj(results: Map<string, SharedArrayBuffer>) {
-  const obj: Record<string, SharedArrayBuffer> = {};
-
-  for (const [key, value] of results.entries()) {
-    obj[key] = value;
-  }
-
-  return obj;
-}
-
-/**
  * Task execution options.
  */
 export interface ExecuteTaskOptions {
@@ -252,6 +256,6 @@ export async function* executeTask(
   task: Task<string, DependencyMap, BufferType, TaskConfig>,
   descriptor: TaskDescriptor<string, DependencyMap, TaskConfig>,
   options: ExecuteTaskOptions,
-): AsyncGenerator<IntermediateTaskResult | FinalTaskResult> {
+): AsyncGenerator<TaskResult> {
   //
 }
